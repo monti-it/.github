@@ -1,0 +1,28 @@
+name: Self-test
+
+# Calls each reusable scan workflow through its local path against the
+# fixtures in tests/fixtures/, so a change to a workflow is exercised on its
+# own pull request before it is tagged for callers.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-scan:
+    uses: ./.github/workflows/dependency-scan.yml
+    with:
+      scan-ref: tests/fixtures/deps
+
+  container-scan:
+    # No `dockerfile` input: checks it resolves to <context>/Dockerfile.
+    uses: ./.github/workflows/container-scan.yml
+    with:
+      context: ./tests/fixtures/api
+
+  iac-scan:
+    uses: ./.github/workflows/iac-scan.yml
+    with:
+      scan-ref: tests/fixtures
