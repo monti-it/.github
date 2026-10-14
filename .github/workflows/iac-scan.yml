@@ -1,0 +1,42 @@
+name: IaC scan
+
+# Reusable workflow: scans the caller's infrastructure-as-code (Dockerfiles,
+# Kubernetes manifests, Terraform, Helm...) for misconfigurations with Trivy
+# (`trivy config`). Fails the job on a finding at or above `severity`.
+# A `.trivyignore` at the root of the caller's repo is honoured.
+
+on:
+  workflow_call:
+    inputs:
+      scan-ref:
+        description: Path to scan, relative to the repository root.
+        type: string
+        default: .
+      severity:
+        description: Comma-separated severities that fail the scan.
+        type: string
+        default: CRITICAL,HIGH
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Trivy IaC scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # ignore-unfixed is not set: it applies to vulnerabilities only, and a
+      # misconfiguration has no "fixed version".
+      - name: Scan IaC configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ inputs.scan-ref }}
+          severity: ${{ inputs.severity }}
+          exit-code: '1'
+          format: table
