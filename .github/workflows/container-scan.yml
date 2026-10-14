@@ -1,0 +1,66 @@
+name: Container scan
+
+# Reusable workflow: builds the caller's image with `docker build`, then scans
+# it for known vulnerabilities with Trivy (`trivy image`). The image is only
+# built locally on the runner, never pushed. Fails the job on a fixed
+# vulnerability at or above `severity`. A `.trivyignore` at the root of the
+# caller's repo is honoured.
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Docker build context, relative to the repository root.
+        type: string
+        default: .
+      dockerfile:
+        description: Dockerfile path, relative to `context`.
+        type: string
+        default: Dockerfile
+      target:
+        description: Build stage to target. Empty builds the last stage.
+        type: string
+        default: ''
+      severity:
+        description: Comma-separated severities that fail the scan.
+        type: string
+        default: CRITICAL,HIGH
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Build and Trivy image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_REF: container-scan:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Inputs reach the shell through env, never through ${{ }} in the script.
+      - name: Build image
+        env:
+          CONTEXT: ${{ inputs.context }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          args=(--file "$CONTEXT/$DOCKERFILE" --tag "$IMAGE_REF")
+          if [ -n "$TARGET" ]; then
+            args+=(--target "$TARGET")
+          fi
+          docker build "${args[@]}" "$CONTEXT"
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table

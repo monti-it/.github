@@ -1,0 +1,41 @@
+name: Dependency scan
+
+# Reusable workflow: scans the caller's lockfiles for known vulnerabilities
+# with Trivy (`trivy fs`). Fails the job on a fixed vulnerability at or above
+# `severity`. A `.trivyignore` at the root of the caller's repo is honoured.
+
+on:
+  workflow_call:
+    inputs:
+      scan-ref:
+        description: Path to scan, relative to the repository root.
+        type: string
+        default: .
+      severity:
+        description: Comma-separated severities that fail the scan.
+        type: string
+        default: CRITICAL,HIGH
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Trivy dependency scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan dependencies
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ inputs.scan-ref }}
+          scanners: vuln
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
